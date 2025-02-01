@@ -52,7 +52,7 @@ class SentenceTokenizer:
 
 @dataclass
 class FulltextExtractor:
-    sentence_tokenizer: SentenceTokenizer = field(default_factory=SentenceTokenizer)
+    sentence_tokenizer: SentenceTokenizer | None = field(default_factory=SentenceTokenizer)
     tmp_dir: str = "./tmp/grobid"
 
     def __call__(self, pdf_file_path: Path) -> tuple[dict[str, list[str]], str] | None:
@@ -82,11 +82,15 @@ class FulltextExtractor:
             extraction_result = sienna.load(extraction_fpath)
             sections: dict[str, list[str]] = {}
 
-            print("Segmenting texts into sentences by sections")
+            if self.sentence_tokenizer is not None:
+                print("Segmenting texts into sentences by sections")
             for body_text in extraction_result["pdf_parse"]["body_text"]:
                 section_name = body_text["section"].lower()
 
-                sents = self.sentence_tokenizer(body_text["text"])
+                if self.sentence_tokenizer is not None:
+                    sents = self.sentence_tokenizer(body_text["text"])
+                else:
+                    sents = [body_text["text"]]
 
                 if section_name not in sections.keys():
                     sections[section_name] = []
@@ -134,12 +138,19 @@ class XML2Jsons:
         parser.add_argument(
             "--collection-id-filters", nargs="+", type=str, default=None
         )
+        parser.add_argument("--dont-sentencize", action="store_true")
         args = parser.parse_args()
+
+        kwargs = {}
+        if args.dont_sentencize:
+            print("Not sentencizing the fulltext")
+            kwargs["fulltext_extractor"] = FulltextExtractor(sentence_tokenizer=None)
         return cls(
             base_output_dir=Path(args.base_output_dir),
             pdf_output_dir=Path(args.pdf_output_dir),
             anthology=Anthology(datadir=args.anthology_data_dir),
             collection_id_filters=args.collection_id_filters,
+            **kwargs
         )
 
     def run(self):
