@@ -125,6 +125,7 @@ class XML2Jsons:
     pdf_output_dir: Path
     anthology: Anthology
     collection_id_filters: list[str] | None
+    venue_id_whitelist: list[str] | None = None
 
     pdf_downloader: PDFDownloader = field(default_factory=PDFDownloader)
     fulltext_extractor: FulltextExtractor = field(default_factory=FulltextExtractor)
@@ -138,6 +139,7 @@ class XML2Jsons:
         parser.add_argument(
             "--collection-id-filters", nargs="+", type=str, default=None
         )
+        parser.add_argument("--venue-id-whitelist", nargs="+", type=str, default=None)
         parser.add_argument("--dont-sentencize", action="store_true")
         args = parser.parse_args()
 
@@ -150,6 +152,7 @@ class XML2Jsons:
             pdf_output_dir=Path(args.pdf_output_dir),
             anthology=Anthology(datadir=args.anthology_data_dir),
             collection_id_filters=args.collection_id_filters,
+            venue_id_whitelist=args.venue_id_whitelist,
             **kwargs
         )
 
@@ -165,6 +168,15 @@ class XML2Jsons:
                     continue
             print(f"Processing collection: {collection_id}")
             for volume in collection.volumes():
+                if self.venue_id_whitelist is not None:
+                    if not any(
+                        [
+                            venue_id in volume.venue_ids
+                            for venue_id in self.venue_id_whitelist
+                        ]
+                    ):
+                        continue
+
                 volume_id = f"{collection_id}-{volume.id}"
                 volume_dir = self.base_output_dir / collection_id / volume.id
 
